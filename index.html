@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-color: #0b0e11;
+            --card-bg: #151921;
+            --accent: #0088cc;
+            --text: #ffffff;
+            --text-dim: #94a3b8;
+        }
+        body {
+            background: var(--bg-color);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0; padding: 0;
+            -webkit-user-select: none;
+        }
+        .container { padding: 16px; }
+        header {
+            padding: 20px 16px;
+            background: var(--card-bg);
+            border-bottom: 1px solid #2d3748;
+            position: sticky; top: 0; z-index: 10;
+        }
+        .title { font-size: 20px; font-weight: 700; color: var(--accent); }
+        
+        .manga-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 20px;
+        }
+        .manga-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #2d3748;
+        }
+        .manga-card img {
+            width: 100%; height: 200px;
+            object-fit: cover;
+            background: #252a34;
+        }
+        .manga-info { padding: 10px; }
+        .manga-name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+        .manga-status { font-size: 11px; color: var(--text-dim); }
+
+        /* Окно читалки */
+        #reader {
+            display: none;
+            position: fixed; top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: #000; z-index: 100;
+            overflow-y: auto;
+        }
+        .reader-img { width: 100%; display: block; margin-bottom: 2px; }
+        .close-reader {
+            position: fixed; top: 15px; right: 15px;
+            background: rgba(0,0,0,0.6);
+            color: white; border: none;
+            width: 35px; height: 35px;
+            border-radius: 50%; font-size: 20px;
+            z-index: 101;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="title">ARCANUM LIBRARY</div>
+</header>
+
+<div class="container">
+    <div class="manga-grid" id="grid">
+        <div class="manga-card" onclick="openReader('хосаку')">
+            <img src="https://via.placeholder.com/200x300/151921/0088cc?text=Hosaku" alt="Обложка">
+            <div class="manga-info">
+                <div class="manga-name">хосаку</div>
+                <div class="manga-status">1 глава • Новое</div>
+            </div>
+        </div>
+        <div class="manga-card" onclick="openReader('Командир')">
+            <img src="https://via.placeholder.com/200x300/151921/0088cc?text=Commander" alt="Обложка">
+            <div class="manga-info">
+                <div class="manga-name">Как охомутать Командира</div>
+                <div class="manga-status">В процессе</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="reader">
+    <button class="close-reader" onclick="closeReader()">✕</button>
+    <div id="pages"></div>
+</div>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+
+    function openReader(name) {
+        document.getElementById('reader').style.display = 'block';
+        tg.MainButton.setText('ЗАКРЫТЬ ЧТЕНИЕ');
+        tg.MainButton.show();
+        
+        // В будущем здесь будет запрос к боту за реальными картинками
+        const pagesDiv = document.getElementById('pages');
+        pagesDiv.innerHTML = '<p style="text-align:center; padding:50px;">Загрузка страниц ' + name + '...</p>';
+    }
+
+    function closeReader() {
+        document.getElementById('reader').style.display = 'none';
+        tg.MainButton.hide();
+    }
+
+    tg.onEvent('mainButtonClicked', closeReader);
+</script>
+</body>
+</html>
