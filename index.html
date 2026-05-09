@@ -3,123 +3,121 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FALLING READER</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --bg: #0b0e11; --accent: #eb3349; --card: #1a1f26; --text: #ffffff; }
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 0; }
         .header { padding: 15px; background: #151921; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748; position: sticky; top: 0; z-index: 100; }
-        .admin-btn { background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; display: none; }
         .container { padding: 15px; }
         .manga-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
-        .manga-card { background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid #2d3748; cursor: pointer; }
-        .manga-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; }
-        .card-info { padding: 8px; font-size: 14px; text-align: center; font-weight: bold; }
-        .reader-mode img { width: 100%; display: block; margin: 0; }
-        .admin-panel { display: none; background: #1a1f26; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid var(--accent); }
-        input, textarea { width: 100%; padding: 10px; margin: 5px 0; background: #0b0e11; border: 1px solid #2d3748; color: white; border-radius: 5px; box-sizing: border-box; }
-        .btn-save { background: #28a745; color: white; width: 100%; padding: 12px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
-        .page-item { position: relative; width: 100%; }
-        .btn-delete-page { position: absolute; top: 10px; right: 10px; background: rgba(235, 51, 73, 0.9); color: white; border: none; padding: 8px; border-radius: 5px; z-index: 5; }
+        .manga-card { background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid #2d3748; cursor: pointer; transition: transform 0.2s; }
+        .manga-card:active { transform: scale(0.98); }
+        .manga-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
+        .card-info { padding: 10px; font-size: 14px; text-align: center; font-weight: bold; }
+        .reader-mode img { width: 100%; display: block; }
+        .empty-msg { text-align: center; color: #718096; margin-top: 50px; font-size: 16px; line-height: 1.5; }
+        .back-btn { width: 100%; padding: 20px; background: #2d3748; color: white; border: none; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <div style="font-weight: bold; letter-spacing: 1px;">FALLING PROJECT</div>
-    <button id="adminToggle" class="admin-btn" onclick="toggleAdmin()">⚙️ АДМИН</button>
+    <div style="font-weight: bold; letter-spacing: 1px; color: var(--accent);">FALLING PROJECT</div>
+    <div id="status-dot" style="width: 10px; height: 10px; background: #4a5568; border-radius: 50%;"></div>
 </div>
 
 <div class="container">
-    <div id="adminArea" class="admin-panel">
-        <h3>Управление проектом</h3>
-        <input type="text" id="edit_name" placeholder="Название">
-        <input type="text" id="edit_cover" placeholder="URL обложки (ImgBB)">
-        <textarea id="edit_desc" placeholder="Описание проекта"></textarea>
-        <button class="btn-save" onclick="saveTitleInfo()">ОБНОВИТЬ ДАННЫЕ</button>
+    <div id="catalog" class="manga-grid">
+        <div class="empty-msg">Синхронизация с облаком FALLING...</div>
     </div>
-
-    <div id="catalog" class="manga-grid"></div>
-    <div id="reader" class="reader-mode" style="display:none;"></div>
+    <div id="reader" style="display:none;"></div>
 </div>
 
 <script>
     const tg = window.Telegram.WebApp;
     const SB_URL = "https://isljrkchacvmkkfjrxve.supabase.co";
     const SB_KEY = "sb_publishable_PQaDxAaLtwXBhS0mzjFhqA_wIZiuErs";
-    const supabase = window.supabase.createClient(SB_URL, SB_KEY);
-
-    const ADMIN_ID = 5961270858;
-    let currentUserId = tg.initDataUnsafe?.user?.id;
-    let selectedTitleId = null;
-
-    async function init() {
-        tg.expand();
-        if (currentUserId === ADMIN_ID) {
-            document.getElementById('adminToggle').style.display = 'block';
-        }
-        loadCatalog();
-    }
+    
+    // Инициализация клиента Supabase
+    const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
 
     async function loadCatalog() {
-        const { data: titles, error } = await supabase.from('titles').select('*');
         const catalog = document.getElementById('catalog');
-        if (error) { catalog.innerHTML = "Ошибка подключения к облаку"; return; }
+        const dot = document.getElementById('status-dot');
         
-        catalog.innerHTML = titles.map(t => `
-            <div class="manga-card" onclick="openTitle(${t.id}, '${t.name}')">
-                <img src="${t.cover_url || 'https://via.placeholder.com/200x300?text=FALLING'}" alt="">
-                <div class="card-info">${t.name}</div>
-            </div>
-        `).join('');
-    }
+        try {
+            // Запрашиваем все тайтлы из таблицы titles
+            const { data: titles, error } = await supabaseClient
+                .from('titles')
+                .select('*')
+                .order('id', { ascending: false });
 
-    async function openTitle(id, name) {
-        selectedTitleId = id;
-        document.getElementById('catalog').style.display = 'none';
-        const reader = document.getElementById('reader');
-        reader.innerHTML = "<div style='text-align:center'>Загрузка страниц...</div>";
-        reader.style.display = 'block';
-        
-        const { data: pages } = await supabase.from('pages').select('*').eq('title_id', id).order('id', { ascending: true });
-        
-        reader.innerHTML = pages.map(p => `
-            <div class="page-item" id="p-${p.id}">
-                <img src="${p.url}">
-                ${currentUserId === ADMIN_ID ? `<button class="btn-delete-page" onclick="deletePage(${p.id})">Удалить страницу</button>` : ''}
-            </div>
-        `).join('') + `<button class="btn-save" style="background:#555; margin-top:20px;" onclick="location.reload()">↩ НАЗАД В КАТАЛОГ</button>`;
-    }
+            if (error) throw error;
 
-    async function deletePage(id) {
-        if(confirm('Удалить эту страницу навсегда?')) {
-            await supabase.from('pages').delete().eq('id', id);
-            document.getElementById(`p-${id}`).remove();
+            if (!titles || titles.length === 0) {
+                catalog.innerHTML = `<div class="empty-msg">В базе FALLING пока пусто.<br>Добавь проект через бота командой /add_title</div>`;
+                dot.style.background = "#ecc94b"; // Желтый - база пуста
+                return;
+            }
+
+            dot.style.background = "#48bb78"; // Зеленый - данные есть
+            
+            catalog.innerHTML = titles.map(t => `
+                <div class="manga-card" onclick="openTitle(${t.id})">
+                    <img src="${t.cover_url || 'https://via.placeholder.com/200x300?text=FALLING'}" onerror="this.src='https://via.placeholder.com/200x300?text=Error+Image'">
+                    <div class="card-info">${t.name || 'Без названия'}</div>
+                </div>
+            `).join('');
+
+        } catch (err) {
+            console.error("Ошибка загрузки:", err);
+            dot.style.background = "#f56565"; // Красный - ошибка
+            catalog.innerHTML = `<div class="empty-msg" style="color:#f56565">Ошибка подключения!<br>${err.message}</div>`;
         }
     }
 
-    function toggleAdmin() {
-        const area = document.getElementById('adminArea');
-        area.style.display = area.style.display === 'block' ? 'none' : 'block';
+    async function openTitle(id) {
+        const catalog = document.getElementById('catalog');
+        const reader = document.getElementById('reader');
+        
+        catalog.style.display = 'none';
+        reader.style.display = 'block';
+        reader.innerHTML = "<div class='empty-msg'>Загрузка страниц...</div>";
+
+        try {
+            const { data: pages, error } = await supabaseClient
+                .from('pages')
+                .select('url')
+                .eq('title_id', id)
+                .order('id', { ascending: true });
+
+            if (error) throw error;
+
+            if (!pages || pages.length === 0) {
+                reader.innerHTML = `
+                    <div class="empty-msg">В этом тайтле еще нет страниц.<br>Скинь фото боту!</div>
+                    <button class="back-btn" onclick="location.reload()">↩ НАЗАД</button>
+                `;
+                return;
+            }
+
+            reader.innerHTML = pages.map(p => `<img src="${p.url}" loading="lazy">`).join('') + 
+                               `<button class="back-btn" onclick="location.reload()">↩ НАЗАД В КАТАЛОГ</button>`;
+            
+            window.scrollTo(0, 0);
+
+        } catch (err) {
+            reader.innerHTML = `<div class="empty-msg">Ошибка: ${err.message}</div>
+                                <button class="back-btn" onclick="location.reload()">↩ НАЗАД</button>`;
+        }
     }
 
-    async function saveTitleInfo() {
-        if(!selectedTitleId) { alert("Сначала выбери тайтл в каталоге!"); return; }
-        const name = document.getElementById('edit_name').value;
-        const cover = document.getElementById('edit_cover').value;
-        const desc = document.getElementById('edit_desc').value;
-
-        const updateData = {};
-        if(name) updateData.name = name;
-        if(cover) updateData.cover_url = cover;
-        if(desc) updateData.description = desc;
-
-        await supabase.from('titles').update(updateData).eq('id', selectedTitleId);
-        alert('Данные FALLING обновлены!');
-        location.reload();
-    }
-
-    init();
+    // Инициализация WebApp
+    tg.expand();
+    tg.ready();
+    loadCatalog();
 </script>
 </body>
 </html>
