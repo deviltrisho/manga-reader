@@ -6,89 +6,49 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --bg: #0b0e11; --text: #ffffff; }
-        body { 
-            background: var(--bg); 
-            color: var(--text); 
-            font-family: sans-serif; 
-            margin: 0; 
-            padding: 0; 
-            overscroll-behavior: none;
-        }
-        header { 
-            padding: 10px; 
-            background: #151921; 
-            border-bottom: 1px solid #2d3748; 
-            text-align: center; 
-            position: sticky; 
-            top: 0; 
-            z-index: 10;
-            font-size: 14px;
-            letter-spacing: 1px;
-        }
-        .reader-container { 
-            display: flex; 
-            flex-direction: column; 
-            width: 100%; 
-        }
-        .manga-page { 
-            width: 100%; 
-            height: auto; 
-            display: block;
-            margin: 0;
-            padding: 0;
-            background: #000;
-        }
-        .info-msg {
-            text-align: center;
-            padding: 50px 20px;
-            color: #718096;
-        }
-        /* Убираем синее выделение при нажатии на мобилках */
-        * { -webkit-tap-highlight-color: transparent; }
+        body { background: var(--bg); color: var(--text); font-family: sans-serif; margin: 0; padding: 0; }
+        header { padding: 10px; background: #151921; border-bottom: 1px solid #2d3748; text-align: center; position: sticky; top: 0; z-index: 10; font-size: 14px; }
+        .reader-container { display: flex; flex-direction: column; width: 100%; }
+        .manga-page { width: 100%; height: auto; display: block; background: #000; }
+        .info-msg { text-align: center; padding: 50px 20px; color: #718096; }
     </style>
 </head>
 <body>
-
 <header id="header-status">ARCANUM LIBRARY</header>
-
-<div class="reader-container" id="viewer">
-    <div class="info-msg">Загрузка страниц...</div>
-</div>
+<div class="reader-container" id="viewer"><div class="info-msg">Синхронизация...</div></div>
 
 <script>
     const tg = window.Telegram.WebApp;
-    tg.expand(); // Разворачиваем на весь экран
+    tg.expand();
     tg.ready();
 
-    // Получаем параметры из URL
-    const params = new URLSearchParams(window.location.search);
-    const urlsParam = params.get('urls');
-    const viewer = document.getElementById('viewer');
-    const headerStatus = document.getElementById('header-status');
-
-    if (urlsParam) {
-        // Очищаем контейнер
-        viewer.innerHTML = '';
-        const urls = urlsParam.split(',');
-
-        urls.forEach((url, index) => {
-            const img = document.createElement('img');
-            img.src = url.trim();
-            img.className = 'manga-page';
-            // Ленивая загрузка для экономии трафика (кроме первых двух страниц)
-            if (index > 1) img.loading = 'lazy'; 
-            
-            img.onerror = function() {
-                console.error("Ошибка загрузки страницы:", url);
-            };
-            
-            viewer.appendChild(img);
-        });
-
-        headerStatus.innerText = `СТРАНИЦ: ${urls.length}`;
-    } else {
-        viewer.innerHTML = '<div class="info-msg">Библиотека пуста.<br>Открой главу через бота командой /read</div>';
+    function render() {
+        const params = new URLSearchParams(window.location.search);
+        const urlsParam = params.get('urls');
+        const viewer = document.getElementById('viewer');
+        
+        if (urlsParam && urlsParam.trim() !== "") {
+            viewer.innerHTML = '';
+            const urls = urlsParam.split(',');
+            urls.forEach((url) => {
+                if(url.length > 5) {
+                    const img = document.createElement('img');
+                    img.src = url.trim();
+                    img.className = 'manga-page';
+                    viewer.appendChild(img);
+                }
+            });
+            document.getElementById('header-status').innerText = `СТРАНИЦ: ${urls.length}`;
+        } else {
+            viewer.innerHTML = '<div class="info-msg">Библиотека пуста.<br>Обновите список через команду /read</div>';
+        }
     }
+
+    // Запуск рендера при открытии
+    render();
+
+    // Сообщаем Telegram, что страница обновилась
+    tg.onEvent('mainButtonClicked', function(){ render(); });
 </script>
 </body>
 </html>
