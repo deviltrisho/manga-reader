@@ -3,74 +3,84 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FALLING ADMIN CMS</title>
+    <title>FALLING CMS v2</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --bg: #0b0e11; --accent: #eb3349; --card: #1a1f26; --text: #ffffff; --green: #28a745; }
-        body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; }
+        :root { --bg: #0b0e11; --accent: #eb3349; --card: #1a1f26; --text: #ffffff; --green: #28a745; --gray: #2d3748; }
+        body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; margin: 0; padding: 0; }
         
-        /* Header */
-        .header { padding: 15px; background: #151921; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748; position: sticky; top: 0; z-index: 100; }
-        .logo { font-weight: bold; letter-spacing: 1px; color: var(--accent); cursor: pointer; }
-        .admin-badge { background: var(--accent); font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; display: none; }
+        .header { padding: 15px; background: #151921; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--gray); position: sticky; top: 0; z-index: 100; }
+        .logo { font-weight: bold; color: var(--accent); cursor: pointer; display: flex; align-items: center; }
+        .admin-badge { background: var(--accent); font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
 
-        /* Grid */
         .container { padding: 15px; }
         .manga-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
-        .manga-card { background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid #2d3748; position: relative; }
+        .manga-card { background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid var(--gray); cursor: pointer; }
         .manga-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
         .card-info { padding: 10px; font-size: 14px; text-align: center; font-weight: bold; }
 
-        /* Admin Panel UI */
-        .admin-panel { display: none; background: #1a1f26; padding: 20px; border-radius: 12px; border: 1px solid var(--accent); margin-bottom: 20px; }
-        .admin-panel h3 { margin-top: 0; color: var(--accent); }
-        input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; background: #0b0e11; border: 1px solid #2d3748; color: white; border-radius: 8px; box-sizing: border-box; }
-        .btn { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
-        .btn-secondary { background: #4a5568; }
+        /* Панели управления */
+        .admin-section { display: none; background: #1a1f26; padding: 15px; border-radius: 12px; border: 1px solid var(--accent); margin-bottom: 20px; }
+        .admin-section h3 { margin: 0 0 10px 0; font-size: 16px; color: var(--accent); }
+        
+        input { width: 100%; padding: 12px; margin: 5px 0; background: #0b0e11; border: 1px solid var(--gray); color: white; border-radius: 8px; box-sizing: border-box; }
+        .btn { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; transition: 0.2s; }
+        .btn:active { opacity: 0.8; }
         .btn-upload { background: var(--green); }
+        .btn-outline { background: transparent; border: 1px solid var(--gray); margin-top: 10px; }
+        .btn-danger { background: #742a2a; margin-top: 15px; font-size: 12px; }
 
         /* Reader */
         .reader-mode img { width: 100%; display: block; }
-        .page-wrapper { position: relative; }
-        .del-page-btn { position: absolute; top: 10px; right: 10px; background: rgba(235,51,73,0.8); border: none; color: white; padding: 5px 10px; border-radius: 5px; display: none; }
+        .page-container { position: relative; }
+        .page-del { position: absolute; top: 10px; right: 10px; background: rgba(235,51,73,0.7); border: none; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; }
 
-        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        /* Loader */
+        .loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
 
-<div id="loader" class="loading-overlay">
-    <div style="border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
-    <p>Загрузка в облако...</p>
+<div id="loadingOverlay" class="loader">
+    <div class="spinner"></div>
+    <p id="loaderText" style="margin-top:10px;">Загрузка...</p>
 </div>
 
 <div class="header">
-    <div class="logo" onclick="location.reload()">FALLING PROJECT <span id="admTag" class="admin-badge">ADMIN</span></div>
-    <button id="adminToggleBtn" class="btn" style="width: auto; padding: 5px 10px; display: none;" onclick="toggleAdminPanel()">CMS</button>
+    <div class="logo" onclick="location.reload()">FALLING <span id="admTag" class="admin-badge" style="display:none">ADM</span></div>
+    <button id="mainAdminBtn" class="btn" style="width:auto; padding: 5px 15px; display:none;" onclick="toggleSection('globalAdmin')">CMS</button>
+    <button id="backBtn" class="btn" style="width:auto; padding: 5px 15px; display:none;" onclick="location.reload()">↩ Назад</button>
 </div>
 
 <div class="container">
-    <div id="adminArea" class="admin-panel">
-        <h3>Управление контентом</h3>
-        
-        <div id="newTitleForm">
-            <p><strong>+ Создать новый тайтл</strong></p>
-            <input type="text" id="newTitleName" placeholder="Название манги (напр. Хосаку)">
-            <input type="file" id="newTitleCoverFile" accept="image/*">
-            <button class="btn btn-upload" onclick="createNewTitle()">Создать тайтл</button>
-        </div>
+    <div id="globalAdmin" class="admin-section">
+        <h3>Новый тайтл</h3>
+        <input type="text" id="newTitleName" placeholder="Название">
+        <input type="file" id="newTitleFile" accept="image/*">
+        <button class="btn btn-upload" onclick="createNewTitle()">Создать проект</button>
+    </div>
 
-        <div id="addPagesForm" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #2d3748; display: none;">
-            <p><strong>+ Добавить страницы в: <span id="targetTitleName"></span></strong></p>
-            <input type="file" id="pageFiles" accept="image/*" multiple>
-            <button class="btn btn-upload" onclick="uploadPages()">Загрузить страницы</button>
-            <button class="btn btn-secondary" onclick="deleteCurrentTitle()" style="background: #742a2a; margin-top: 20px;">Удалить весь тайтл</button>
-        </div>
+    <div id="titleAdmin" class="admin-section">
+        <h3>Управление проектом</h3>
+        <input type="text" id="editTitleName" placeholder="Изменить название">
+        <p style="font-size:12px; color:#718096; margin: 5px 0;">Сменить обложку:</p>
+        <input type="file" id="editTitleFile" accept="image/*">
+        <button class="btn" style="background:#4a5568" onclick="updateTitleInfo()">Сохранить изменения</button>
+        
+        <hr style="border:0; border-top:1px solid var(--gray); margin:15px 0;">
+        
+        <h3>Добавить страницы</h3>
+        <input type="file" id="pageFiles" accept="image/*" multiple>
+        <button class="btn btn-upload" onclick="uploadPages()">Загрузить файлы</button>
+        
+        <button class="btn btn-danger" onclick="deleteFullTitle()">УДАЛИТЬ ВЕСЬ ТАЙТЛ</button>
     </div>
 
     <div id="catalog" class="manga-grid"></div>
-    <div id="reader" style="display:none;"></div>
+    <div id="reader" class="reader-mode" style="display:none;"></div>
 </div>
 
 <script>
@@ -80,17 +90,16 @@
     const IMGBB_KEY = "d90985684463d301ef5377f50a45ebba";
     
     const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
-    const ADMIN_ID = 5961270858; // Твой ID
-    let is_admin = false;
-    let current_title_id = null;
+    const ADMIN_ID = 5961270858;
+    let isAdmin = false;
+    let currentId = null;
 
     async function init() {
         tg.expand();
-        const user = tg.initDataUnsafe?.user;
-        if (user && user.id === ADMIN_ID) {
-            is_admin = true;
-            document.getElementById('admTag').style.display = 'inline-block';
-            document.getElementById('adminToggleBtn').style.display = 'block';
+        if (tg.initDataUnsafe?.user?.id === ADMIN_ID) {
+            isAdmin = true;
+            document.getElementById('admTag').style.display = 'block';
+            document.getElementById('mainAdminBtn').style.display = 'block';
         }
         loadCatalog();
     }
@@ -98,105 +107,113 @@
     async function loadCatalog() {
         const { data: titles } = await supabaseClient.from('titles').select('*').order('id', { ascending: false });
         const catalog = document.getElementById('catalog');
-        
-        if (!titles || titles.length === 0) {
-            catalog.innerHTML = `<div class="empty-msg">Библиотека пуста.</div>`;
-            return;
-        }
-
         catalog.innerHTML = titles.map(t => `
-            <div class="manga-card" onclick="openTitle(${t.id}, '${t.name}')">
-                <img src="${t.cover_url || 'https://via.placeholder.com/200x300?text=NO+COVER'}">
+            <div class="manga-card" onclick="openTitle(${t.id}, '${t.name.replace(/'/g, "\\'")}', '${t.cover_url}')">
+                <img src="${t.cover_url || 'https://via.placeholder.com/200x300'}">
                 <div class="card-info">${t.name}</div>
             </div>
         `).join('');
     }
 
-    function toggleAdminPanel() {
-        const panel = document.getElementById('adminArea');
-        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    function toggleSection(id) {
+        const el = document.getElementById(id);
+        el.style.display = el.style.display === 'block' ? 'none' : 'block';
     }
 
-    async function openTitle(id, name) {
-        current_title_id = id;
+    async function openTitle(id, name, cover) {
+        currentId = id;
         document.getElementById('catalog').style.display = 'none';
-        const reader = document.getElementById('reader');
-        reader.style.display = 'block';
-        reader.innerHTML = "Загрузка...";
-
-        if(is_admin) {
-            document.getElementById('addPagesForm').style.display = 'block';
-            document.getElementById('targetTitleName').innerText = name;
+        document.getElementById('globalAdmin').style.display = 'none';
+        document.getElementById('mainAdminBtn').style.display = 'none';
+        document.getElementById('backBtn').style.display = 'block';
+        
+        if(isAdmin) {
+            document.getElementById('titleAdmin').style.display = 'none'; // Скрыто по умолчанию, кнопка CMS внутри тайтла теперь тоже нужна
+            document.getElementById('mainAdminBtn').style.display = 'block';
+            document.getElementById('mainAdminBtn').onclick = () => toggleSection('titleAdmin');
+            document.getElementById('editTitleName').value = name;
         }
 
+        const reader = document.getElementById('reader');
+        reader.style.display = 'block';
         const { data: pages } = await supabaseClient.from('pages').select('*').eq('title_id', id).order('id', { ascending: true });
         
         reader.innerHTML = (pages || []).map(p => `
-            <div class="page-wrapper" id="page-${p.id}">
-                <img src="${p.url}">
-                ${is_admin ? `<button class="del-page-btn" style="display:block" onclick="deletePage(${p.id})">Удалить</button>` : ''}
+            <div class="page-container" id="p-${p.id}">
+                <img src="${p.url}" loading="lazy">
+                ${isAdmin ? `<button class="page-del" onclick="deletePage(${p.id})">Удалить</button>` : ''}
             </div>
-        `).join('') + `<button class="btn btn-secondary" onclick="location.reload()">↩ НАЗАД</button>`;
+        `).join('') + `<button class="btn btn-outline" onclick="location.reload()">↩ Назад в каталог</button>`;
     }
 
-    // --- ФУНКЦИИ АДМИНКИ ---
+    // --- ЛОГИКА АДМИНА ---
 
     async function imgbbUpload(file) {
-        let formData = new FormData();
-        formData.append("image", file);
-        const resp = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: formData });
-        const json = await resp.json();
-        return json.data.url;
+        let fd = new FormData();
+        fd.append("image", file);
+        const r = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: fd });
+        const j = await r.json();
+        return j.data.url;
     }
 
     async function createNewTitle() {
         const name = document.getElementById('newTitleName').value;
-        const file = document.getElementById('newTitleCoverFile').files[0];
-        if(!name || !file) return alert("Введите название и выберите обложку!");
+        const file = document.getElementById('newTitleFile').files[0];
+        if(!name || !file) return alert("Заполните всё!");
+        
+        setLoading(true, "Создание тайтла...");
+        const url = await imgbbUpload(file);
+        await supabaseClient.from('titles').insert([{ name, cover_url: url }]);
+        location.reload();
+    }
 
-        showLoader(true);
-        try {
-            const url = await imgbbUpload(file);
-            await supabaseClient.from('titles').insert([{ name: name, cover_url: url }]);
-            location.reload();
-        } catch (e) { alert(e.message); }
-        showLoader(false);
+    async function updateTitleInfo() {
+        const newName = document.getElementById('editTitleName').value;
+        const file = document.getElementById('editTitleFile').files[0];
+        
+        setLoading(true, "Обновление данных...");
+        let updateData = { name: newName };
+        if(file) {
+            updateData.cover_url = await imgbbUpload(file);
+        }
+        await supabaseClient.from('titles').update(updateData).eq('id', currentId);
+        location.reload();
     }
 
     async function uploadPages() {
         const files = document.getElementById('pageFiles').files;
-        if(files.length === 0) return alert("Выберите файлы!");
-
-        showLoader(true);
-        for (let file of files) {
-            const url = await imgbbUpload(file);
-            await supabaseClient.from('pages').insert([{ title_id: current_title_id, url: url }]);
+        if(!files.length) return;
+        
+        setLoading(true, `Загрузка страниц (0/${files.length})...`);
+        for(let i=0; i<files.length; i++) {
+            document.getElementById('loaderText').innerText = `Загрузка (${i+1}/${files.length})...`;
+            const url = await imgbbUpload(files[i]);
+            await supabaseClient.from('pages').insert([{ title_id: currentId, url: url }]);
         }
-        openTitle(current_title_id, ""); // Обновить вид
-        showLoader(false);
-    }
-
-    async function deletePage(id) {
-        if(!confirm("Удалить страницу?")) return;
-        await supabaseClient.from('pages').delete().eq('id', id);
-        document.getElementById(`page-${id}`).remove();
-    }
-
-    async function deleteCurrentTitle() {
-        if(!confirm("УДАЛИТЬ ВЕСЬ ТАЙТЛ? Это нельзя отменить!")) return;
-        await supabaseClient.from('titles').delete().eq('id', current_title_id);
         location.reload();
     }
 
-    function showLoader(show) {
-        document.getElementById('loader').style.display = show ? 'flex' : 'none';
+    async function deletePage(id) {
+        if(confirm("Удалить страницу?")) {
+            await supabaseClient.from('pages').delete().eq('id', id);
+            document.getElementById(`p-${id}`).remove();
+        }
+    }
+
+    async function deleteFullTitle() {
+        if(confirm("УДАЛИТЬ ВЕСЬ ПРОЕКТ?")) {
+            setLoading(true, "Удаление...");
+            await supabaseClient.from('titles').delete().eq('id', currentId);
+            location.reload();
+        }
+    }
+
+    function setLoading(s, t) {
+        document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none';
+        document.getElementById('loaderText').innerText = t;
     }
 
     init();
 </script>
-
-<style>
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-</style>
 </body>
 </html>
