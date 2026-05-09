@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FALLING CMS v3.1</title>
+    <title>FALLING CMS v4</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --bg: #0b0e11; --accent: #eb3349; --card: #1a1f26; --text: #ffffff; --green: #28a745; --gray: #2d3748; }
-        body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; margin: 0; padding: 0; overflow-x: hidden; }
         .header { padding: 15px; background: #151921; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--gray); position: sticky; top: 0; z-index: 100; }
         .logo { font-weight: bold; color: var(--accent); cursor: pointer; }
         .admin-badge { background: var(--accent); font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 8px; }
@@ -18,14 +18,14 @@
         .manga-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
         .card-info { padding: 10px; font-size: 14px; text-align: center; font-weight: bold; }
         .admin-section { display: none; background: #1a1f26; padding: 15px; border-radius: 12px; border: 1px solid var(--accent); margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin: 5px 0; background: #0b0e11; border: 1px solid var(--gray); color: white; border-radius: 8px; box-sizing: border-box; }
+        input { width: 100%; padding: 12px; margin: 5px 0; background: #0b0e11; border: 1px solid var(--gray); color: white; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
         .btn { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
         .btn-danger { background: #742a2a; margin-top: 10px; font-size: 12px; }
-        .loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
-        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        .loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; text-align: center; }
+        .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 15px; }
         .reader-mode img { width: 100%; display: block; }
         .page-container { position: relative; }
-        .page-del { position: absolute; top: 10px; right: 10px; background: rgba(235,51,73,0.7); border: none; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; }
+        .page-del { position: absolute; top: 10px; right: 10px; background: rgba(235,51,73,0.8); border: none; color: white; padding: 6px 12px; border-radius: 6px; font-size: 12px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -33,7 +33,7 @@
 
 <div id="loadingOverlay" class="loader">
     <div class="spinner"></div>
-    <p id="loaderText" style="margin-top:10px;">Обработка данных...</p>
+    <p id="loaderText">Синхронизация с Supabase Storage...</p>
 </div>
 
 <div class="header">
@@ -44,23 +44,23 @@
 
 <div class="container">
     <div id="globalAdmin" class="admin-section">
-        <h3>Новый тайтл</h3>
-        <input type="text" id="newTitleName" placeholder="Название">
+        <h3>Новый проект</h3>
+        <input type="text" id="newTitleName" placeholder="Название манги">
         <input type="file" id="newTitleFile" accept="image/*">
-        <button class="btn" onclick="createNewTitle()" style="background:var(--green)">Создать проект</button>
+        <button class="btn" onclick="createNewTitle()" style="background:var(--green)">Создать и загрузить</button>
     </div>
 
     <div id="titleAdmin" class="admin-section">
-        <h3>Управление тайтлом</h3>
-        <input type="text" id="editTitleName" placeholder="Название">
-        <p style="font-size:11px; color:gray; margin: 5px 0;">Сменить обложку:</p>
+        <h3>Управление проектом</h3>
+        <input type="text" id="editTitleName" placeholder="Изменить название">
+        <p style="font-size:11px; color:#718096; margin: 5px 0;">Сменить обложку (старая удалится):</p>
         <input type="file" id="editTitleFile" accept="image/*">
         <button class="btn" onclick="updateTitleInfo()">Сохранить изменения</button>
-        <button class="btn btn-danger" onclick="deleteCoverOnly()" style="background:#4a5568">Удалить обложку</button>
+        <button class="btn btn-danger" onclick="deleteCoverOnly()" style="background:#4a5568">Сбросить обложку</button>
         <hr style="border:0; border-top:1px solid var(--gray); margin:15px 0;">
-        <h3>Страницы</h3>
+        <h3>Добавить страницы</h3>
         <input type="file" id="pageFiles" accept="image/*" multiple>
-        <button class="btn" onclick="uploadPages()" style="background:var(--green)">Добавить файлы</button>
+        <button class="btn" onclick="uploadPages()" style="background:var(--green)">Загрузить в Storage</button>
         <button class="btn btn-danger" onclick="deleteFullTitle()">УДАЛИТЬ ВЕСЬ ТАЙТЛ</button>
     </div>
 
@@ -72,13 +72,12 @@
     const tg = window.Telegram.WebApp;
     const SB_URL = "https://isljrkchacvmkkfjrxve.supabase.co";
     const SB_KEY = "sb_publishable_PQaDxAaLtwXBhS0mzjFhqA_wIZiuErs";
-    const IMGBB_KEY = "d90985684463d301ef5377f50a45ebba";
     
     const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
     const ADMIN_ID = 5961270858;
     let isAdmin = false;
     let currentId = null;
-    let currentDeleteUrl = null;
+    let currentStoragePath = null; // Теперь храним путь к файлу в Storage
 
     async function init() {
         tg.expand();
@@ -94,15 +93,15 @@
         const { data: titles } = await supabaseClient.from('titles').select('*').order('id', { ascending: false });
         document.getElementById('catalog').innerHTML = (titles || []).map(t => `
             <div class="manga-card" onclick="openTitle(${t.id}, '${t.name.replace(/'/g, "\\'")}', '${t.delete_url}')">
-                <img src="${t.cover_url || 'https://via.placeholder.com/200x300'}">
+                <img src="${t.cover_url || 'https://via.placeholder.com/200x300?text=NO+IMAGE'}">
                 <div class="card-info">${t.name}</div>
             </div>
         `).join('');
     }
 
-    async function openTitle(id, name, delUrl) {
+    async function openTitle(id, name, storagePath) {
         currentId = id;
-        currentDeleteUrl = delUrl;
+        currentStoragePath = storagePath;
         document.getElementById('catalog').style.display = 'none';
         document.getElementById('globalAdmin').style.display = 'none';
         document.getElementById('mainAdminBtn').style.display = 'block';
@@ -119,67 +118,53 @@
                 <img src="${p.url}" loading="lazy">
                 ${isAdmin ? `<button class="page-del" onclick="deletePage(${p.id}, '${p.delete_url}')">Удалить</button>` : ''}
             </div>
-        `).join('') + `<button class="btn" style="background:#2d3748" onclick="location.reload()">↩ В КАТАЛОГ</button>`;
+        `).join('') + `<button class="btn" style="background:#2d3748; margin-bottom:40px;" onclick="location.reload()">↩ В КАТАЛОГ</button>`;
+        window.scrollTo(0,0);
     }
 
-    // --- ФОНОВАЯ ОЧИСТКА IMGBB ---
-    function silentRemoveFromImgBB(deleteUrl) {
-        if (!deleteUrl || deleteUrl === "null" || deleteUrl === "undefined") return;
-        // Просто "пинг" без ожидания результата
-        fetch(deleteUrl, { mode: 'no-cors' }).catch(() => console.log("ImgBB silent skip"));
+    // --- ФУНКЦИИ STORAGE ---
+
+    async function uploadToStorage(file) {
+        const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${file.name}`;
+        const { data, error } = await supabaseClient.storage.from('manga').upload(fileName, file);
+        if (error) throw error;
+        
+        const { data: urlData } = supabaseClient.storage.from('manga').getPublicUrl(fileName);
+        return { url: urlData.publicUrl, path: fileName };
     }
 
-    async function imgbbUpload(file) {
-        let fd = new FormData();
-        fd.append("image", file);
-        const r = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: fd });
-        const j = await r.json();
-        return { url: j.data.url, delete_url: j.data.delete_url };
+    async function removeFromStorage(path) {
+        if (!path || path === "null") return;
+        await supabaseClient.storage.from('manga').remove([path]);
     }
+
+    // --- АДМИН-ЛОГИКА ---
 
     async function createNewTitle() {
         const name = document.getElementById('newTitleName').value;
         const file = document.getElementById('newTitleFile').files[0];
-        if(!name || !file) return alert("Заполните имя и выберите обложку");
+        if(!name || !file) return alert("Нужно название и обложка");
         
         setLoading(true, "Загрузка обложки...");
         try {
-            const res = await imgbbUpload(file);
-            await supabaseClient.from('titles').insert([{ name, cover_url: res.url, delete_url: res.delete_url }]);
+            const res = await uploadToStorage(file);
+            await supabaseClient.from('titles').insert([{ name, cover_url: res.url, delete_url: res.path }]);
             location.reload();
         } catch(e) { alert(e.message); setLoading(false); }
     }
 
     async function updateTitleInfo() {
         const file = document.getElementById('editTitleFile').files[0];
-        setLoading(true, "Обновление данных...");
+        setLoading(true, "Синхронизация...");
         try {
             let updateData = { name: document.getElementById('editTitleName').value };
             if(file) {
-                silentRemoveFromImgBB(currentDeleteUrl);
-                const res = await imgbbUpload(file);
+                await removeFromStorage(currentStoragePath);
+                const res = await uploadToStorage(file);
                 updateData.cover_url = res.url;
-                updateData.delete_url = res.delete_url;
+                updateData.delete_url = res.path;
             }
             await supabaseClient.from('titles').update(updateData).eq('id', currentId);
-            location.reload();
-        } catch(e) { alert(e.message); setLoading(false); }
-    }
-
-    async function deleteCoverOnly() {
-        if(!confirm("Удалить обложку?")) return;
-        setLoading(true, "Удаление...");
-        silentRemoveFromImgBB(currentDeleteUrl);
-        await supabaseClient.from('titles').update({ cover_url: null, delete_url: null }).eq('id', currentId);
-        location.reload();
-    }
-
-    async function deleteFullTitle() {
-        if(!confirm("УДАЛИТЬ ВЕСЬ ПРОЕКТ?")) return;
-        setLoading(true, "Удаление из базы...");
-        try {
-            silentRemoveFromImgBB(currentDeleteUrl);
-            await supabaseClient.from('titles').delete().eq('id', currentId);
             location.reload();
         } catch(e) { alert(e.message); setLoading(false); }
     }
@@ -187,22 +172,48 @@
     async function uploadPages() {
         const files = document.getElementById('pageFiles').files;
         if(!files.length) return;
-        setLoading(true, "Загрузка страниц...");
+        setLoading(true, "Загрузка в Storage...");
         try {
             for(let i=0; i<files.length; i++) {
                 document.getElementById('loaderText').innerText = `Загрузка (${i+1}/${files.length})...`;
-                const res = await imgbbUpload(files[i]);
-                await supabaseClient.from('pages').insert([{ title_id: currentId, url: res.url, delete_url: res.delete_url }]);
+                const res = await uploadToStorage(files[i]);
+                await supabaseClient.from('pages').insert([{ title_id: currentId, url: res.url, delete_url: res.path }]);
             }
             location.reload();
         } catch(e) { alert(e.message); setLoading(false); }
     }
 
-    async function deletePage(id, pageDelUrl) {
+    async function deletePage(id, path) {
         if(!confirm("Удалить страницу?")) return;
-        silentRemoveFromImgBB(pageDelUrl);
+        setLoading(true, "Удаление...");
+        await removeFromStorage(path);
         await supabaseClient.from('pages').delete().eq('id', id);
-        document.getElementById(`p-${id}`).remove();
+        location.reload();
+    }
+
+    async function deleteFullTitle() {
+        if(!confirm("УДАЛИТЬ ВЕСЬ ПРОЕКТ?")) return;
+        setLoading(true, "Очистка данных...");
+        try {
+            // Удаляем обложку
+            await removeFromStorage(currentStoragePath);
+            // Удаляем все страницы из Storage
+            const { data: pages } = await supabaseClient.from('pages').select('delete_url').eq('title_id', currentId);
+            const paths = (pages || []).map(p => p.delete_url).filter(p => p);
+            if(paths.length > 0) await supabaseClient.storage.from('manga').remove(paths);
+            
+            // Удаляем из базы
+            await supabaseClient.from('titles').delete().eq('id', currentId);
+            location.reload();
+        } catch(e) { alert(e.message); setLoading(false); }
+    }
+
+    async function deleteCoverOnly() {
+        if(!confirm("Удалить обложку?")) return;
+        setLoading(true, "Удаление...");
+        await removeFromStorage(currentStoragePath);
+        await supabaseClient.from('titles').update({ cover_url: null, delete_url: null }).eq('id', currentId);
+        location.reload();
     }
 
     function toggleSection(id) {
