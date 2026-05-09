@@ -3,35 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FALLING READER</title>
+    <title>FALLING ADMIN CMS</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        :root { --bg: #0b0e11; --accent: #eb3349; --card: #1a1f26; --text: #ffffff; }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 0; }
+        :root { --bg: #0b0e11; --accent: #eb3349; --card: #1a1f26; --text: #ffffff; --green: #28a745; }
+        body { background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; }
+        
+        /* Header */
         .header { padding: 15px; background: #151921; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2d3748; position: sticky; top: 0; z-index: 100; }
+        .logo { font-weight: bold; letter-spacing: 1px; color: var(--accent); cursor: pointer; }
+        .admin-badge { background: var(--accent); font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; display: none; }
+
+        /* Grid */
         .container { padding: 15px; }
         .manga-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
-        .manga-card { background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid #2d3748; cursor: pointer; transition: transform 0.2s; }
-        .manga-card:active { transform: scale(0.98); }
+        .manga-card { background: var(--card); border-radius: 10px; overflow: hidden; border: 1px solid #2d3748; position: relative; }
         .manga-card img { width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block; }
         .card-info { padding: 10px; font-size: 14px; text-align: center; font-weight: bold; }
+
+        /* Admin Panel UI */
+        .admin-panel { display: none; background: #1a1f26; padding: 20px; border-radius: 12px; border: 1px solid var(--accent); margin-bottom: 20px; }
+        .admin-panel h3 { margin-top: 0; color: var(--accent); }
+        input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; background: #0b0e11; border: 1px solid #2d3748; color: white; border-radius: 8px; box-sizing: border-box; }
+        .btn { background: var(--accent); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 5px; }
+        .btn-secondary { background: #4a5568; }
+        .btn-upload { background: var(--green); }
+
+        /* Reader */
         .reader-mode img { width: 100%; display: block; }
-        .empty-msg { text-align: center; color: #718096; margin-top: 50px; font-size: 16px; line-height: 1.5; }
-        .back-btn { width: 100%; padding: 20px; background: #2d3748; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .page-wrapper { position: relative; }
+        .del-page-btn { position: absolute; top: 10px; right: 10px; background: rgba(235,51,73,0.8); border: none; color: white; padding: 5px 10px; border-radius: 5px; display: none; }
+
+        .loading-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
     </style>
 </head>
 <body>
 
+<div id="loader" class="loading-overlay">
+    <div style="border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
+    <p>Загрузка в облако...</p>
+</div>
+
 <div class="header">
-    <div style="font-weight: bold; letter-spacing: 1px; color: var(--accent);">FALLING PROJECT</div>
-    <div id="status-dot" style="width: 10px; height: 10px; background: #4a5568; border-radius: 50%;"></div>
+    <div class="logo" onclick="location.reload()">FALLING PROJECT <span id="admTag" class="admin-badge">ADMIN</span></div>
+    <button id="adminToggleBtn" class="btn" style="width: auto; padding: 5px 10px; display: none;" onclick="toggleAdminPanel()">CMS</button>
 </div>
 
 <div class="container">
-    <div id="catalog" class="manga-grid">
-        <div class="empty-msg">Синхронизация с облаком FALLING...</div>
+    <div id="adminArea" class="admin-panel">
+        <h3>Управление контентом</h3>
+        
+        <div id="newTitleForm">
+            <p><strong>+ Создать новый тайтл</strong></p>
+            <input type="text" id="newTitleName" placeholder="Название манги (напр. Хосаку)">
+            <input type="file" id="newTitleCoverFile" accept="image/*">
+            <button class="btn btn-upload" onclick="createNewTitle()">Создать тайтл</button>
+        </div>
+
+        <div id="addPagesForm" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #2d3748; display: none;">
+            <p><strong>+ Добавить страницы в: <span id="targetTitleName"></span></strong></p>
+            <input type="file" id="pageFiles" accept="image/*" multiple>
+            <button class="btn btn-upload" onclick="uploadPages()">Загрузить страницы</button>
+            <button class="btn btn-secondary" onclick="deleteCurrentTitle()" style="background: #742a2a; margin-top: 20px;">Удалить весь тайтл</button>
+        </div>
     </div>
+
+    <div id="catalog" class="manga-grid"></div>
     <div id="reader" style="display:none;"></div>
 </div>
 
@@ -39,85 +77,126 @@
     const tg = window.Telegram.WebApp;
     const SB_URL = "https://isljrkchacvmkkfjrxve.supabase.co";
     const SB_KEY = "sb_publishable_PQaDxAaLtwXBhS0mzjFhqA_wIZiuErs";
+    const IMGBB_KEY = "d90985684463d301ef5377f50a45ebba";
     
-    // Инициализация клиента Supabase
     const supabaseClient = supabase.createClient(SB_URL, SB_KEY);
+    const ADMIN_ID = 5961270858; // Твой ID
+    let is_admin = false;
+    let current_title_id = null;
+
+    async function init() {
+        tg.expand();
+        const user = tg.initDataUnsafe?.user;
+        if (user && user.id === ADMIN_ID) {
+            is_admin = true;
+            document.getElementById('admTag').style.display = 'inline-block';
+            document.getElementById('adminToggleBtn').style.display = 'block';
+        }
+        loadCatalog();
+    }
 
     async function loadCatalog() {
+        const { data: titles } = await supabaseClient.from('titles').select('*').order('id', { ascending: false });
         const catalog = document.getElementById('catalog');
-        const dot = document.getElementById('status-dot');
         
-        try {
-            // Запрашиваем все тайтлы из таблицы titles
-            const { data: titles, error } = await supabaseClient
-                .from('titles')
-                .select('*')
-                .order('id', { ascending: false });
-
-            if (error) throw error;
-
-            if (!titles || titles.length === 0) {
-                catalog.innerHTML = `<div class="empty-msg">В базе FALLING пока пусто.<br>Добавь проект через бота командой /add_title</div>`;
-                dot.style.background = "#ecc94b"; // Желтый - база пуста
-                return;
-            }
-
-            dot.style.background = "#48bb78"; // Зеленый - данные есть
-            
-            catalog.innerHTML = titles.map(t => `
-                <div class="manga-card" onclick="openTitle(${t.id})">
-                    <img src="${t.cover_url || 'https://via.placeholder.com/200x300?text=FALLING'}" onerror="this.src='https://via.placeholder.com/200x300?text=Error+Image'">
-                    <div class="card-info">${t.name || 'Без названия'}</div>
-                </div>
-            `).join('');
-
-        } catch (err) {
-            console.error("Ошибка загрузки:", err);
-            dot.style.background = "#f56565"; // Красный - ошибка
-            catalog.innerHTML = `<div class="empty-msg" style="color:#f56565">Ошибка подключения!<br>${err.message}</div>`;
+        if (!titles || titles.length === 0) {
+            catalog.innerHTML = `<div class="empty-msg">Библиотека пуста.</div>`;
+            return;
         }
+
+        catalog.innerHTML = titles.map(t => `
+            <div class="manga-card" onclick="openTitle(${t.id}, '${t.name}')">
+                <img src="${t.cover_url || 'https://via.placeholder.com/200x300?text=NO+COVER'}">
+                <div class="card-info">${t.name}</div>
+            </div>
+        `).join('');
     }
 
-    async function openTitle(id) {
-        const catalog = document.getElementById('catalog');
+    function toggleAdminPanel() {
+        const panel = document.getElementById('adminArea');
+        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+    }
+
+    async function openTitle(id, name) {
+        current_title_id = id;
+        document.getElementById('catalog').style.display = 'none';
         const reader = document.getElementById('reader');
-        
-        catalog.style.display = 'none';
         reader.style.display = 'block';
-        reader.innerHTML = "<div class='empty-msg'>Загрузка страниц...</div>";
+        reader.innerHTML = "Загрузка...";
 
-        try {
-            const { data: pages, error } = await supabaseClient
-                .from('pages')
-                .select('url')
-                .eq('title_id', id)
-                .order('id', { ascending: true });
-
-            if (error) throw error;
-
-            if (!pages || pages.length === 0) {
-                reader.innerHTML = `
-                    <div class="empty-msg">В этом тайтле еще нет страниц.<br>Скинь фото боту!</div>
-                    <button class="back-btn" onclick="location.reload()">↩ НАЗАД</button>
-                `;
-                return;
-            }
-
-            reader.innerHTML = pages.map(p => `<img src="${p.url}" loading="lazy">`).join('') + 
-                               `<button class="back-btn" onclick="location.reload()">↩ НАЗАД В КАТАЛОГ</button>`;
-            
-            window.scrollTo(0, 0);
-
-        } catch (err) {
-            reader.innerHTML = `<div class="empty-msg">Ошибка: ${err.message}</div>
-                                <button class="back-btn" onclick="location.reload()">↩ НАЗАД</button>`;
+        if(is_admin) {
+            document.getElementById('addPagesForm').style.display = 'block';
+            document.getElementById('targetTitleName').innerText = name;
         }
+
+        const { data: pages } = await supabaseClient.from('pages').select('*').eq('title_id', id).order('id', { ascending: true });
+        
+        reader.innerHTML = (pages || []).map(p => `
+            <div class="page-wrapper" id="page-${p.id}">
+                <img src="${p.url}">
+                ${is_admin ? `<button class="del-page-btn" style="display:block" onclick="deletePage(${p.id})">Удалить</button>` : ''}
+            </div>
+        `).join('') + `<button class="btn btn-secondary" onclick="location.reload()">↩ НАЗАД</button>`;
     }
 
-    // Инициализация WebApp
-    tg.expand();
-    tg.ready();
-    loadCatalog();
+    // --- ФУНКЦИИ АДМИНКИ ---
+
+    async function imgbbUpload(file) {
+        let formData = new FormData();
+        formData.append("image", file);
+        const resp = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: formData });
+        const json = await resp.json();
+        return json.data.url;
+    }
+
+    async function createNewTitle() {
+        const name = document.getElementById('newTitleName').value;
+        const file = document.getElementById('newTitleCoverFile').files[0];
+        if(!name || !file) return alert("Введите название и выберите обложку!");
+
+        showLoader(true);
+        try {
+            const url = await imgbbUpload(file);
+            await supabaseClient.from('titles').insert([{ name: name, cover_url: url }]);
+            location.reload();
+        } catch (e) { alert(e.message); }
+        showLoader(false);
+    }
+
+    async function uploadPages() {
+        const files = document.getElementById('pageFiles').files;
+        if(files.length === 0) return alert("Выберите файлы!");
+
+        showLoader(true);
+        for (let file of files) {
+            const url = await imgbbUpload(file);
+            await supabaseClient.from('pages').insert([{ title_id: current_title_id, url: url }]);
+        }
+        openTitle(current_title_id, ""); // Обновить вид
+        showLoader(false);
+    }
+
+    async function deletePage(id) {
+        if(!confirm("Удалить страницу?")) return;
+        await supabaseClient.from('pages').delete().eq('id', id);
+        document.getElementById(`page-${id}`).remove();
+    }
+
+    async function deleteCurrentTitle() {
+        if(!confirm("УДАЛИТЬ ВЕСЬ ТАЙТЛ? Это нельзя отменить!")) return;
+        await supabaseClient.from('titles').delete().eq('id', current_title_id);
+        location.reload();
+    }
+
+    function showLoader(show) {
+        document.getElementById('loader').style.display = show ? 'flex' : 'none';
+    }
+
+    init();
 </script>
+
+<style>
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
 </body>
 </html>
