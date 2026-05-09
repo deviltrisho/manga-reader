@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>FALLING CMS v3</title>
+    <title>FALLING CMS v3.1</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -23,6 +23,9 @@
         .btn-danger { background: #742a2a; margin-top: 10px; font-size: 12px; }
         .loader { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; }
+        .reader-mode img { width: 100%; display: block; }
+        .page-container { position: relative; }
+        .page-del { position: absolute; top: 10px; right: 10px; background: rgba(235,51,73,0.7); border: none; color: white; padding: 5px 10px; border-radius: 5px; font-size: 12px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
@@ -30,7 +33,7 @@
 
 <div id="loadingOverlay" class="loader">
     <div class="spinner"></div>
-    <p id="loaderText" style="margin-top:10px;">Синхронизация ресурсов...</p>
+    <p id="loaderText" style="margin-top:10px;">Обработка данных...</p>
 </div>
 
 <div class="header">
@@ -44,24 +47,25 @@
         <h3>Новый тайтл</h3>
         <input type="text" id="newTitleName" placeholder="Название">
         <input type="file" id="newTitleFile" accept="image/*">
-        <button class="btn" onclick="createNewTitle()" style="background:var(--green)">Создать</button>
+        <button class="btn" onclick="createNewTitle()" style="background:var(--green)">Создать проект</button>
     </div>
 
     <div id="titleAdmin" class="admin-section">
         <h3>Управление тайтлом</h3>
-        <input type="text" id="editTitleName">
-        <p style="font-size:11px; color:gray;">Заменить обложку (старая удалится с ImgBB):</p>
+        <input type="text" id="editTitleName" placeholder="Название">
+        <p style="font-size:11px; color:gray; margin: 5px 0;">Сменить обложку:</p>
         <input type="file" id="editTitleFile" accept="image/*">
-        <button class="btn" onclick="updateTitleInfo()">Сохранить</button>
-        <button class="btn btn-danger" onclick="deleteCoverOnly()" style="background:#4a5568">Удалить только обложку</button>
+        <button class="btn" onclick="updateTitleInfo()">Сохранить изменения</button>
+        <button class="btn btn-danger" onclick="deleteCoverOnly()" style="background:#4a5568">Удалить обложку</button>
         <hr style="border:0; border-top:1px solid var(--gray); margin:15px 0;">
+        <h3>Страницы</h3>
         <input type="file" id="pageFiles" accept="image/*" multiple>
-        <button class="btn" onclick="uploadPages()" style="background:var(--green)">Добавить страницы</button>
-        <button class="btn btn-danger" onclick="deleteFullTitle()">УДАЛИТЬ ВЕСЬ ПРОЕКТ</button>
+        <button class="btn" onclick="uploadPages()" style="background:var(--green)">Добавить файлы</button>
+        <button class="btn btn-danger" onclick="deleteFullTitle()">УДАЛИТЬ ВЕСЬ ТАЙТЛ</button>
     </div>
 
     <div id="catalog" class="manga-grid"></div>
-    <div id="reader" style="display:none;"></div>
+    <div id="reader" class="reader-mode" style="display:none;"></div>
 </div>
 
 <script>
@@ -77,6 +81,7 @@
     let currentDeleteUrl = null;
 
     async function init() {
+        tg.expand();
         if (tg.initDataUnsafe?.user?.id === ADMIN_ID) {
             isAdmin = true;
             document.getElementById('admTag').style.display = 'block';
@@ -87,7 +92,7 @@
 
     async function loadCatalog() {
         const { data: titles } = await supabaseClient.from('titles').select('*').order('id', { ascending: false });
-        document.getElementById('catalog').innerHTML = titles.map(t => `
+        document.getElementById('catalog').innerHTML = (titles || []).map(t => `
             <div class="manga-card" onclick="openTitle(${t.id}, '${t.name.replace(/'/g, "\\'")}', '${t.delete_url}')">
                 <img src="${t.cover_url || 'https://via.placeholder.com/200x300'}">
                 <div class="card-info">${t.name}</div>
@@ -108,17 +113,20 @@
         const reader = document.getElementById('reader');
         reader.style.display = 'block';
         const { data: pages } = await supabaseClient.from('pages').select('*').eq('title_id', id).order('id', { ascending: true });
-        reader.innerHTML = (pages || []).map(p => `<div><img src="${p.url}" style="width:100%"></div>`).join('') + `<button class="btn" onclick="location.reload()">↩ Назад</button>`;
+        
+        reader.innerHTML = (pages || []).map(p => `
+            <div class="page-container" id="p-${p.id}">
+                <img src="${p.url}" loading="lazy">
+                ${isAdmin ? `<button class="page-del" onclick="deletePage(${p.id}, '${p.delete_url}')">Удалить</button>` : ''}
+            </div>
+        `).join('') + `<button class="btn" style="background:#2d3748" onclick="location.reload()">↩ В КАТАЛОГ</button>`;
     }
 
-    // --- УДАЛЕНИЕ С IMGBB ---
-    async function removeFromImgBB(deleteUrl) {
-        if (!deleteUrl || deleteUrl === "null") return;
-        try {
-            // ImgBB API не всегда позволяет удалять через простой GET, 
-            // но мы вызываем ссылку удаления, которая была получена при загрузке.
-            await fetch(deleteUrl, { mode: 'no-cors' }); 
-        } catch(e) { console.log("Ошибка удаления с ImgBB", e); }
+    // --- ФОНОВАЯ ОЧИСТКА IMGBB ---
+    function silentRemoveFromImgBB(deleteUrl) {
+        if (!deleteUrl || deleteUrl === "null" || deleteUrl === "undefined") return;
+        // Просто "пинг" без ожидания результата
+        fetch(deleteUrl, { mode: 'no-cors' }).catch(() => console.log("ImgBB silent skip"));
     }
 
     async function imgbbUpload(file) {
@@ -126,58 +134,75 @@
         fd.append("image", file);
         const r = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_KEY}`, { method: "POST", body: fd });
         const j = await r.json();
-        // j.data.delete_url - это ссылка на страницу удаления
         return { url: j.data.url, delete_url: j.data.delete_url };
     }
 
     async function createNewTitle() {
         const name = document.getElementById('newTitleName').value;
         const file = document.getElementById('newTitleFile').files[0];
+        if(!name || !file) return alert("Заполните имя и выберите обложку");
+        
         setLoading(true, "Загрузка обложки...");
-        const res = await imgbbUpload(file);
-        await supabaseClient.from('titles').insert([{ name, cover_url: res.url, delete_url: res.delete_url }]);
-        location.reload();
+        try {
+            const res = await imgbbUpload(file);
+            await supabaseClient.from('titles').insert([{ name, cover_url: res.url, delete_url: res.delete_url }]);
+            location.reload();
+        } catch(e) { alert(e.message); setLoading(false); }
     }
 
     async function updateTitleInfo() {
         const file = document.getElementById('editTitleFile').files[0];
         setLoading(true, "Обновление данных...");
-        let updateData = { name: document.getElementById('editTitleName').value };
-        
-        if(file) {
-            await removeFromImgBB(currentDeleteUrl); // Удаляем старую
-            const res = await imgbbUpload(file);
-            updateData.cover_url = res.url;
-            updateData.delete_url = res.delete_url;
-        }
-        await supabaseClient.from('titles').update(updateData).eq('id', currentId);
-        location.reload();
+        try {
+            let updateData = { name: document.getElementById('editTitleName').value };
+            if(file) {
+                silentRemoveFromImgBB(currentDeleteUrl);
+                const res = await imgbbUpload(file);
+                updateData.cover_url = res.url;
+                updateData.delete_url = res.delete_url;
+            }
+            await supabaseClient.from('titles').update(updateData).eq('id', currentId);
+            location.reload();
+        } catch(e) { alert(e.message); setLoading(false); }
     }
 
     async function deleteCoverOnly() {
         if(!confirm("Удалить обложку?")) return;
         setLoading(true, "Удаление...");
-        await removeFromImgBB(currentDeleteUrl);
+        silentRemoveFromImgBB(currentDeleteUrl);
         await supabaseClient.from('titles').update({ cover_url: null, delete_url: null }).eq('id', currentId);
         location.reload();
     }
 
     async function deleteFullTitle() {
         if(!confirm("УДАЛИТЬ ВЕСЬ ПРОЕКТ?")) return;
-        setLoading(true, "Полное удаление...");
-        await removeFromImgBB(currentDeleteUrl);
-        await supabaseClient.from('titles').delete().eq('id', currentId);
-        location.reload();
+        setLoading(true, "Удаление из базы...");
+        try {
+            silentRemoveFromImgBB(currentDeleteUrl);
+            await supabaseClient.from('titles').delete().eq('id', currentId);
+            location.reload();
+        } catch(e) { alert(e.message); setLoading(false); }
     }
 
     async function uploadPages() {
         const files = document.getElementById('pageFiles').files;
+        if(!files.length) return;
         setLoading(true, "Загрузка страниц...");
-        for(let f of files) {
-            const res = await imgbbUpload(f);
-            await supabaseClient.from('pages').insert([{ title_id: currentId, url: res.url }]);
-        }
-        location.reload();
+        try {
+            for(let i=0; i<files.length; i++) {
+                document.getElementById('loaderText').innerText = `Загрузка (${i+1}/${files.length})...`;
+                const res = await imgbbUpload(files[i]);
+                await supabaseClient.from('pages').insert([{ title_id: currentId, url: res.url, delete_url: res.delete_url }]);
+            }
+            location.reload();
+        } catch(e) { alert(e.message); setLoading(false); }
+    }
+
+    async function deletePage(id, pageDelUrl) {
+        if(!confirm("Удалить страницу?")) return;
+        silentRemoveFromImgBB(pageDelUrl);
+        await supabaseClient.from('pages').delete().eq('id', id);
+        document.getElementById(`p-${id}`).remove();
     }
 
     function toggleSection(id) {
@@ -186,7 +211,7 @@
     }
     function setLoading(s, t) {
         document.getElementById('loadingOverlay').style.display = s ? 'flex' : 'none';
-        document.getElementById('loaderText').innerText = t;
+        if(t) document.getElementById('loaderText').innerText = t;
     }
     init();
 </script>
